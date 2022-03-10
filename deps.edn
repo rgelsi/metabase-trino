@@ -1,0 +1,8 @@
+{:paths
+ ["src" "resources"]
+
+ :deps
+ {io.trino/trino-jdbc {:mvn/version "373"}}
+
+ :metabase.driver/parents
+ #{:presto-common}}
