@@ -4,9 +4,6 @@
  :deps
  {io.trino/trino-jdbc {:mvn/version "373"}}
 
- :metabase.driver/parents
- #{:presto-common}
-
  ;; build the driver with clojure -X:build
  :aliases
  {:build
