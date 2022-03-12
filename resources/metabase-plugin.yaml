@@ -3,7 +3,7 @@ info:
   version: 1.0.0-373
   description: Allows Metabase to connect to Trino databases using the Trino JDBC driver
 dependencies:
-  - plugin: Trino Common Driver
+  - plugin: Presto Common Driver
 driver:
   name: trino-jdbc
   display-name: Trino
