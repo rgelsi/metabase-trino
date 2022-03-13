@@ -197,7 +197,8 @@
    :kerberos-credential-cache-path "KerberosCredentialCachePath"
    :kerberos-keytab-path "KerberosKeytabPath"
    :kerberos-service-principal-pattern "KerberosServicePrincipalPattern"
-   :kerberos-config-path "KerberosConfigPath"})
+   :kerberos-config-path "KerberosConfigPath"
+   :kerberos-delegation "KerberosDelegation"})
 
 (defn- details->kerberos-url-params [details]
   (let [remove-blank-vals (fn [m] (into {} (remove (comp str/blank? val) m)))

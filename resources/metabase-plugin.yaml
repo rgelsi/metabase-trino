@@ -84,6 +84,13 @@ driver:
       required: false
       visible-if:
         kerberos: true
+    - name: kerberos-delegation
+      type: boolean
+      display-name: Kerberos delegation
+      default: false
+      required: false
+      visible-if:
+        kerberos: true
     - name: additional-options
       display-name: Additional JDBC options
       placeholder: SSLKeyStorePath=/path/to/keystore.jks&SSLKeyStorePassword=whatever
