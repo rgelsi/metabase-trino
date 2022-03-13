@@ -274,9 +274,12 @@
                                ;; JDBC driver specific properties
                                :kerberos ; we need our boolean property indicating if Kerberos is enabled
                                          ; but the rest of them come from `kerb-props->url-param-names` (below)
-                               :user :password :socksProxy :httpProxy :applicationNamePrefix :disableCompression :SSL
-                               :SSLKeyStorePath :SSLKeyStorePassword :SSLTrustStorePath :SSLTrustStorePassword
-                               :accessToken :extraCredentials :sessionProperties :protocols :queryInterceptors]
+                               :user :password :sessionUser :roles :socksProxy :httpProxy :applicationNamePrefix :clientInfo :clientTags
+                               :traceToken :disableCompression :assumeLiteralNamesInMetadataCallsForNonConformingClients
+                               :SSL :SSLVerification :SSLKeyStorePath :SSLKeyStorePassword :SSLKeyStoreType
+                               :SSLTrustStorePath :SSLTrustStorePassword :SSLTrustStoreType
+                               :accessToken :externalAuthentication :externalAuthenticationRedirectHandlers :externalAuthenticationTimeout 
+                               :externalAuthenticationTokenCache :extraCredentials :sessionProperties :source]
                               (keys kerb-props->url-param-names))))]
     (jdbc-spec props)))
 
