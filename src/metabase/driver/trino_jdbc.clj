@@ -39,28 +39,28 @@
 (def trino-type->base-type
   "Function that returns a `base-type` for the given `trino-type` (can be a keyword or string)."
   (sql-jdbc.sync/pattern-based-database-type->base-type
-    [[#"(?i)boolean"                      :type/Boolean]
-     [#"(?i)tinyint"                      :type/Integer]
-     [#"(?i)smallint"                     :type/Integer]
-     [#"(?i)integer"                      :type/Integer]
-     [#"(?i)bigint"                       :type/BigInteger]
-     [#"(?i)real"                         :type/Float]
-     [#"(?i)double"                       :type/Float]
-     [#"(?i)decimal.*"                    :type/Decimal]
-     [#"(?i)varchar.*"                    :type/Text]
-     [#"(?i)char.*"                       :type/Text]
-     [#"(?i)varbinary.*"                  :type/*]
-     [#"(?i)json"                         :type/Text] ; TODO - this should probably be Dictionary or something
-     [#"(?i)date"                         :type/Date]
-     [#"(?i)^timestamp$"                  :type/DateTime]
-     [#"(?i)^timestamp.* with time zone$" :type/DateTimeWithTZ]
-     [#"(?i)^time$"                       :type/Time]
-     [#"(?i)^time.* with time zone$"      :type/TimeWithTZ]
-     #_[#"(?i)time.+"                      :type/DateTime] ; TODO - get rid of this one?
-     [#"(?i)array"                        :type/Array]
-     [#"(?i)map"                          :type/Dictionary]
-     [#"(?i)row.*"                        :type/*] ; TODO - again, but this time we supposedly have a schema
-     [#".*"                               :type/*]]))
+    [[#"(?i)boolean"                       :type/Boolean]
+     [#"(?i)tinyint"                       :type/Integer]
+     [#"(?i)smallint"                      :type/Integer]
+     [#"(?i)integer"                       :type/Integer]
+     [#"(?i)bigint"                        :type/BigInteger]
+     [#"(?i)real"                          :type/Float]
+     [#"(?i)double"                        :type/Float]
+     [#"(?i)decimal.*"                     :type/Decimal]
+     [#"(?i)varchar.*"                     :type/Text]
+     [#"(?i)char.*"                        :type/Text]
+     [#"(?i)varbinary.*"                   :type/*]
+     [#"(?i)json"                          :type/Text] ; TODO - this should probably be Dictionary or something
+     [#"(?i)date"                          :type/Date]
+     [#"(?i)^time(\((\d|1[0-2])\))?$"      :type/Time]
+     [#"(?i)^time with time zone$"         :type/TimeWithTZ]
+     [#"(?i)^timestamp(\((\d|1[0-2])\))?$" :type/DateTime]
+     [#"(?i)^timestamp(\((\d|1[0-2])\))? with time zone$" :type/DateTimeWithTZ]
+     #_[#"(?i)time.+"                       :type/DateTime] ; TODO - get rid of this one?
+     [#"(?i)array"                         :type/Array]
+     [#"(?i)map"                           :type/Dictionary]
+     [#"(?i)row.*"                         :type/*] ; TODO - again, but this time we supposedly have a schema
+     [#".*"                                :type/*]]))
 
 (def ^:private ^:const timestamp-with-time-zone-db-type "timestamp with time zone")
 
@@ -509,41 +509,34 @@
 
 (defmethod sql-jdbc.execute/read-column-thunk [:trino-jdbc Types/TIME]
   [_ ^ResultSet rs ^ResultSetMetaData rs-meta ^Integer i]
-  (let [type-name  (.getColumnTypeName rs-meta i)
-        base-type  (trino-type->base-type type-name)
-        with-tz?   (isa? base-type :type/TimeWithTZ)]
-    (fn []
-      (let [local-time (-> (.getTime rs i)
-                           sql-time->local-time)]
-        ;; for both `time` and `time with time zone`, the JDBC type reported by the driver is `Types/TIME`, hence
-        ;; we also need to check the column type name to differentiate between them here
-        (if with-tz?
-          ;; even though this value is a `LocalTime`, the base-type is time with time zone, so we need to shift it back to
-          ;; the UTC (0) offset
-          (t/offset-time
-            local-time
-            (t/zone-offset 0))
-          ;; else the base-type is time without time zone, so just return the local-time value
-          local-time)))))
+  (fn []
+    (let [local-time (-> (.getTime rs i)
+                         sql-time->local-time)]
+        ;; else the base-type is time without time zone, so just return the local-time value
+        local-time)))
 
 (defmethod sql-jdbc.execute/read-column-thunk [:trino-jdbc Types/TIME_WITH_TIMEZONE]
-  [_ ^ResultSet rs ^ResultSetMetaData rs-meta ^Integer i]
-  (let [type-name  (.getColumnTypeName rs-meta i)
-        base-type  (trino-type->base-type type-name)
-        with-tz?   (isa? base-type :type/TimeWithTZ)]
+  [_ ^ResultSet rset ^ResultSetMetaData rsmeta ^Integer i]
+  (let [zone     (.getTimeZoneId (rs->trino-conn rset))]
     (fn []
-      (let [local-time (-> (.getTime rs i)
-                           sql-time->local-time)]
-        ;; for both `time` and `time with time zone`, the JDBC type reported by the driver is `Types/TIME`, hence
-        ;; we also need to check the column type name to differentiate between them here
-        (if with-tz?
-          ;; even though this value is a `LocalTime`, the base-type is time with time zone, so we need to shift it back to
-          ;; the UTC (0) offset
-          (t/offset-time
-            local-time
-            (t/zone-offset 0))
-          ;; else the base-type is time without time zone, so just return the local-time value
-          local-time)))))
+      (when-let [s (.getString rset i)]
+        (when-let [t (u.date/parse s)]
+          (cond
+            (or (instance? OffsetDateTime t)
+              (instance? ZonedDateTime t))
+            (-> (t/offset-date-time t)
+              ;; tests are expecting this to be in the UTC offset, so convert to that
+              (t/with-offset-same-instant (t/zone-offset 0)))
+
+            ;; trino "helpfully" returns local results already adjusted to session time zone offset for us, e.g.
+            ;; '2021-06-15T00:00:00' becomes '2021-06-15T07:00:00' if the session timezone is US/Pacific. Undo the
+            ;; madness and convert back to UTC
+            zone
+            (-> (t/zoned-date-time t zone)
+              (u.date/with-time-zone-same-instant "UTC")
+              t/local-date-time)
+            :else
+            t))))))
 
 (defmethod sql-jdbc.execute/read-column-thunk [:trino-jdbc Types/TIMESTAMP]
   [_ ^ResultSet rset ^ResultSetMetaData rsmeta ^Integer i]
